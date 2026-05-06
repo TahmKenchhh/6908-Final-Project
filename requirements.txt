@@ -1,0 +1,24 @@
+# Speech
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+soundfile>=0.12.1
+webrtcvad-wheels>=2.0.10
+piper-tts>=1.4.0
+
+# LLM
+ollama>=0.3.0
+google-genai>=0.3.0
+
+# Camera / vision
+opencv-python-headless>=4.9.0
+Pillow>=10.0.0
+
+# Sensors / GPIO (RPi5)
+smbus2>=0.4.3
+lgpio>=0.2.2.0
+
+# Display / WebSocket
+websockets>=12.0
+
+# Misc
+numpy>=1.24.0

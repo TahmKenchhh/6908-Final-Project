@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Models — too large for git, download via setup.sh
+models/*.onnx
+
+# Audio / image artefacts
+*.wav
+*.tmp.wav
+images/ui_demo.png
+images/*.tmp.png
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.lgd-*
+
+# Claude Code internals
+.claude/
+.agents/
+memory/
+
+# Local secrets (never commit)
+.env
+.env.local
+secrets.json
+
+# Logs
+*.log
+
+# Tarballs we generated
+voice_assistant.tar.gz

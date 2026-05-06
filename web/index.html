@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Max</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#030810; overflow:hidden; width:100vw; height:100vh; }
+  canvas { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+
+  #name {
+    position:fixed; top:6%; width:100%; text-align:center; z-index:10; pointer-events:none;
+    font-family:'Courier New',monospace;
+    font-size:clamp(28px,4vw,60px); font-weight:700; letter-spacing:0.55em;
+    color:#88ccff; text-shadow:0 0 30px rgba(80,180,255,0.9), 0 0 60px rgba(80,180,255,0.4);
+    transition:color .5s, text-shadow .5s;
+  }
+  #status {
+    position:fixed; bottom:13%; width:100%; text-align:center; z-index:10; pointer-events:none;
+    font-family:'Courier New',monospace;
+    font-size:clamp(12px,1.6vw,22px); font-weight:400; letter-spacing:0.25em;
+    color:rgba(120,180,255,0.6); transition:color .4s;
+  }
+  #dots::after { content:''; animation:dots 1.2s steps(3,end) infinite; }
+  @keyframes dots { 0%{content:'_'} 33%{content:'__'} 66%{content:'___'} }
+
+  #lux {
+    position:fixed; top:4%; right:4%; z-index:10; pointer-events:none;
+    font-family:'Courier New',monospace; letter-spacing:0.15em;
+    font-size:clamp(16px,2.2vw,32px); font-weight:600;
+    color:rgba(120,200,255,0.85);
+    text-shadow:0 0 12px rgba(80,180,255,0.6);
+  }
+
+  #transcript {
+    position:fixed; left:50%; transform:translateX(-50%);
+    bottom:18%; width:min(85vw,900px); max-height:30vh;
+    z-index:10; pointer-events:none;
+    font-family:'Courier New',monospace; letter-spacing:.04em;
+    display:flex; flex-direction:column; gap:8px;
+    text-align:center; overflow:hidden;
+  }
+  .tx-line {
+    font-size:clamp(13px,1.5vw,20px);
+    line-height:1.4; padding:6px 16px;
+    border-radius:4px;
+    transition:opacity .4s;
+  }
+  .tx-user {
+    color:rgba(180,220,255,0.85);
+    background:rgba(60,160,255,0.08);
+    border-left:2px solid rgba(80,180,255,0.5);
+  }
+  .tx-assistant {
+    color:rgba(255,220,180,0.95);
+    background:rgba(255,160,50,0.06);
+    border-left:2px solid rgba(255,180,80,0.5);
+  }
+
+  /* ── Control buttons ─────────────────────────────────────────────── */
+  .ctrl-btn {
+    position:fixed; z-index:20;
+    width:clamp(44px,5vw,64px); height:clamp(44px,5vw,64px);
+    border-radius:50%; border:1.5px solid rgba(80,180,255,0.4);
+    background:rgba(3,8,16,0.75); backdrop-filter:blur(6px);
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:border-color .25s, box-shadow .25s, transform .1s;
+  }
+  .ctrl-btn:hover { border-color:rgba(80,180,255,0.9); box-shadow:0 0 18px rgba(80,180,255,0.4); }
+  .ctrl-btn:active { transform:scale(0.92); }
+  .ctrl-btn svg { width:45%; height:45%; }
+
+  #btn-interrupt { bottom:3%; left:4%; }
+  #btn-interrupt:hover { border-color:rgba(255,80,80,0.9); box-shadow:0 0 18px rgba(255,80,80,0.4); }
+  #btn-interrupt svg { stroke:rgba(255,100,100,0.85); }
+
+  #btn-vision { bottom:3%; right:4%; }
+  #btn-vision svg { stroke:rgba(80,210,255,0.85); }
+  #btn-vision.active { border-color:rgba(80,255,160,0.9); box-shadow:0 0 18px rgba(80,255,160,0.4); }
+  #btn-vision.active svg { stroke:rgba(80,255,160,0.9); }
+
+  /* ── Camera overlay ──────────────────────────────────────────────── */
+  #cam-overlay {
+    display:none; position:fixed; inset:0; z-index:30;
+    background:rgba(3,8,16,0.92); flex-direction:column;
+    align-items:center; justify-content:center; gap:20px;
+  }
+  #cam-overlay.open { display:flex; }
+
+  #cam-frame {
+    border:1.5px solid rgba(80,180,255,0.5);
+    box-shadow:0 0 40px rgba(80,180,255,0.2);
+    max-width:min(85vw,640px); max-height:55vh;
+    object-fit:contain;
+  }
+  #cam-label {
+    font-family:'Courier New',monospace; letter-spacing:.18em;
+    color:rgba(80,180,255,0.7); font-size:clamp(11px,1.4vw,18px);
+  }
+
+  .cam-actions { display:flex; gap:20px; }
+  .cam-btn {
+    font-family:'Courier New',monospace; letter-spacing:.2em;
+    font-size:clamp(11px,1.3vw,16px); padding:.6em 1.6em;
+    border-radius:3px; cursor:pointer;
+    transition:background .2s, box-shadow .2s;
+  }
+  #cam-look {
+    background:rgba(80,180,255,0.12); color:rgba(80,210,255,0.9);
+    border:1px solid rgba(80,180,255,0.5);
+  }
+  #cam-look:hover { background:rgba(80,180,255,0.25); box-shadow:0 0 12px rgba(80,180,255,0.3); }
+  #cam-close {
+    background:rgba(255,80,80,0.08); color:rgba(255,100,100,0.8);
+    border:1px solid rgba(255,80,80,0.3);
+  }
+  #cam-close:hover { background:rgba(255,80,80,0.2); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="name">MAX</div>
+<div id="lux">LUX: --</div>
+<div id="transcript">
+  <div class="tx-line tx-user" id="tx-user" style="display:none"></div>
+  <div class="tx-line tx-assistant" id="tx-assistant" style="display:none"></div>
+</div>
+<div id="status"><span id="st">STANDBY — SAY "HEY MAX"</span><span id="dots" style="display:none"></span></div>
+
+<!-- Interrupt button (centre bottom) -->
+<button class="ctrl-btn" id="btn-interrupt" title="Interrupt">
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="6" y="6" width="12" height="12" rx="1.5"/>
+  </svg>
+</button>
+
+<!-- Vision / camera button (bottom right) -->
+<button class="ctrl-btn" id="btn-vision" title="Camera view">
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+</button>
+
+<!-- Camera overlay -->
+<div id="cam-overlay">
+  <div id="cam-label">— VISUAL FEED —</div>
+  <img id="cam-frame" src="" alt="camera">
+  <div class="cam-actions">
+    <button class="cam-btn" id="cam-look">DESCRIBE</button>
+    <button class="cam-btn" id="cam-close">CLOSE</button>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+function resize(){ cv.width=innerWidth; cv.height=innerHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Palette ───────────────────────────────────────────────────────────────────
+const PAL = {
+  idle:      [60, 160, 255],
+  listening: [40, 220, 160],
+  thinking:  [255, 160,  50],
+  speaking:  [80, 210, 255],
+};
+const LABELS = {
+  idle:'STANDBY — SAY "HEY MAX"',
+  listening:'LISTENING',
+  thinking:'PROCESSING',
+  speaking:'SPEAKING',
+};
+let cr=60,cg=160,cb=255, tr=60,tg=160,tb=255;
+let state='idle';
+let mouthT=0, mouthC=0;
+let luxLabel='LUX:--';
+function setMouth(v){ mouthT=Math.max(0,Math.min(1,v)); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+
+// ── FPS throttle ──────────────────────────────────────────────────────────────
+const FPS = { idle:30, listening:30, thinking:10, speaking:30 };
+let _last=0, T=0;
+
+// ── Draw helpers ──────────────────────────────────────────────────────────────
+function ring(x,y,rx,ry,rot,lw,rgba){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+  ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2);
+  ctx.strokeStyle=rgba; ctx.lineWidth=lw; ctx.stroke();
+  ctx.restore();
+}
+function hud_corner(x,y,dx,dy,size,rgba){
+  ctx.strokeStyle=rgba; ctx.lineWidth=1.5; ctx.lineCap='square';
+  ctx.beginPath();
+  ctx.moveTo(x+dx*size,y); ctx.lineTo(x,y); ctx.lineTo(x,y+dy*size);
+  ctx.stroke();
+}
+
+// ── Main loop ─────────────────────────────────────────────────────────────────
+function draw(now){
+  requestAnimationFrame(draw);
+  const fps=FPS[state]||30;
+  if(now-_last<1000/fps) return;
+  _last=now; T+=0.018;
+
+  const W=cv.width, H=cv.height;
+  const CX=W/2, CY=H/2;
+  const R=Math.min(W,H)*0.18;
+
+  cr=lerp(cr,tr,.04); cg=lerp(cg,tg,.04); cb=lerp(cb,tb,.04);
+  mouthC=lerp(mouthC,mouthT,.28);
+  const r=cr|0, g=cg|0, b=cb|0;
+  const RGB=`${r},${g},${b}`;
+
+  ctx.fillStyle='#030810';
+  ctx.fillRect(0,0,W,H);
+
+  const gs=38;
+  for(let gx=gs/2;gx<W;gx+=gs){
+    for(let gy=gs/2;gy<H;gy+=gs){
+      const d=Math.hypot(gx-CX,gy-CY);
+      const op=Math.max(0,0.12-d/(R*8));
+      if(op<0.005) continue;
+      ctx.fillStyle=`rgba(${RGB},${op})`;
+      ctx.fillRect(gx,gy,1,1);
+    }
+  }
+
+  const bg=ctx.createRadialGradient(CX,CY,0,CX,CY,R*3);
+  bg.addColorStop(0,`rgba(${RGB},0.1)`);
+  bg.addColorStop(.6,`rgba(${RGB},0.03)`);
+  bg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  const pulse=.5+Math.sin(T*1.6)*.5;
+  ring(CX,CY,R*1.45,R*1.45*0.28, T*0.22, 1.2, `rgba(${RGB},${0.35+pulse*0.2})`);
+  ring(CX,CY,R*1.65,R*1.65*0.22,-T*0.17+1.1,1,`rgba(${RGB},${0.25+pulse*0.15})`);
+  ring(CX,CY,R*1.85,R*1.85*0.18, T*0.12+2.2,.8,`rgba(${RGB},${0.18+pulse*0.1})`);
+
+  const orbR=R*(1+Math.sin(T*2.2)*.012);
+
+  const og=ctx.createRadialGradient(CX,CY,orbR*.5,CX,CY,orbR*1.5);
+  og.addColorStop(0,`rgba(${RGB},0.25)`);
+  og.addColorStop(.5,`rgba(${RGB},0.08)`);
+  og.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=og; ctx.beginPath(); ctx.arc(CX,CY,orbR*1.5,0,Math.PI*2); ctx.fill();
+
+  const sg=ctx.createRadialGradient(CX-orbR*.32,CY-orbR*.38,0,CX,CY,orbR);
+  sg.addColorStop(0,`rgba(${Math.min(r+120,255)},${Math.min(g+120,255)},255,0.9)`);
+  sg.addColorStop(.3,`rgba(${r},${g},${b},0.75)`);
+  sg.addColorStop(.7,`rgba(${r*.4|0},${g*.4|0},${b*.5|0},0.85)`);
+  sg.addColorStop(1,`rgba(${r*.2|0},${g*.2|0},${b*.3|0},0.9)`);
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(CX,CY,orbR,0,Math.PI*2); ctx.fill();
+
+  ctx.save(); ctx.beginPath(); ctx.arc(CX,CY,orbR,0,Math.PI*2); ctx.clip();
+  ctx.strokeStyle=`rgba(${RGB},0.15)`; ctx.lineWidth=.8;
+  for(let i=0;i<5;i++){
+    const lat=(i/4-0.5)*Math.PI;
+    const cosL=Math.cos(lat)*orbR;
+    const sinL=Math.sin(lat)*orbR;
+    ctx.beginPath();
+    ctx.ellipse(CX,CY+sinL,cosL,cosL*0.22,T*0.1,0,Math.PI*2); ctx.stroke();
+  }
+  for(let i=0;i<6;i++){
+    const a=T*0.1+(i/6)*Math.PI*2;
+    ctx.beginPath();
+    ctx.ellipse(CX,CY,orbR,orbR*0.22,a,0,Math.PI*2); ctx.stroke();
+  }
+  const shine=ctx.createRadialGradient(CX-orbR*.3,CY-orbR*.35,0,CX-orbR*.1,CY-orbR*.1,orbR*.65);
+  shine.addColorStop(0,'rgba(255,255,255,0.35)');
+  shine.addColorStop(.4,'rgba(255,255,255,0.08)');
+  shine.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=shine; ctx.fillRect(CX-orbR,CY-orbR,orbR*2,orbR*2);
+  ctx.restore();
+
+  if(state==='listening'){
+    const N=32;
+    for(let i=0;i<N;i++){
+      const a=(i/N)*Math.PI*2;
+      const h=R*(.08+.28*Math.abs(Math.sin(T*4+i*.42)));
+      const r1=orbR*1.08, r2=r1+h;
+      ctx.strokeStyle=`rgba(${RGB},${0.5+0.5*Math.sin(T*4+i*.42)})`;
+      ctx.lineWidth=2.2; ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(CX+Math.cos(a)*r1,CY+Math.sin(a)*r1);
+      ctx.lineTo(CX+Math.cos(a)*r2,CY+Math.sin(a)*r2);
+      ctx.stroke();
+    }
+  }
+
+  if(state==='thinking'){
+    ctx.save(); ctx.translate(CX,CY);
+    const swA=T*2;
+    ctx.fillStyle=`rgba(${RGB},0.07)`;
+    ctx.beginPath(); ctx.moveTo(0,0);
+    ctx.arc(0,0,R*1.42,swA,swA+Math.PI*.55); ctx.closePath(); ctx.fill();
+    for(let i=0;i<12;i++){
+      const a=(i/12)*Math.PI*2;
+      ctx.strokeStyle=`rgba(${RGB},0.3)`;
+      ctx.lineWidth=1; ctx.lineCap='butt';
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*R*1.12,Math.sin(a)*R*1.12);
+      ctx.lineTo(Math.cos(a)*R*1.42,Math.sin(a)*R*1.42);
+      ctx.stroke();
+    }
+    ctx.fillStyle=`rgba(${RGB},0.9)`;
+    ctx.beginPath(); ctx.arc(Math.cos(swA)*R*1.42,Math.sin(swA)*R*1.42,3,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=`rgba(${RGB},0.5)`; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.arc(0,0,R*0.55,T*3,T*3+Math.PI*1.3); ctx.stroke();
+    ctx.restore();
+  }
+
+  if(state==='speaking'){
+    const N=48;
+    for(let i=0;i<N;i++){
+      const a=(i/N)*Math.PI*2;
+      const wave=Math.abs(Math.sin(T*6+i*.38+mouthC*4));
+      const h=R*(0.04+mouthC*0.55*wave+0.06*Math.sin(T*3+i*.25));
+      const r1=orbR*1.06, r2=r1+h;
+      const op=0.35+mouthC*0.55*wave;
+      ctx.strokeStyle=`rgba(${RGB},${op})`;
+      ctx.lineWidth=2; ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(CX+Math.cos(a)*r1,CY+Math.sin(a)*r1);
+      ctx.lineTo(CX+Math.cos(a)*r2,CY+Math.sin(a)*r2);
+      ctx.stroke();
+    }
+  }
+
+  if(state==='idle'){
+    for(let i=0;i<8;i++){
+      const a=(i/8)*Math.PI*2+T*.3;
+      const op=.2+.3*((Math.sin(T*1.5+i*.8)+1)/2);
+      ctx.fillStyle=`rgba(${RGB},${op})`;
+      ctx.beginPath(); ctx.arc(CX+Math.cos(a)*R*1.28,CY+Math.sin(a)*R*1.28,2.5,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  ctx.strokeStyle=`rgba(${RGB},0.15)`; ctx.lineWidth=.8; ctx.setLineDash([4,8]);
+  ctx.beginPath(); ctx.moveTo(CX,CY-R*2); ctx.lineTo(CX,CY+R*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CX-R*2,CY); ctx.lineTo(CX+R*2,CY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle=`rgba(${RGB},0.9)`;
+  ctx.beginPath(); ctx.arc(CX,CY,2.5,0,Math.PI*2); ctx.fill();
+
+  const cs=Math.min(W,H)*0.055, cm=20;
+  const ca=`rgba(${RGB},0.45)`;
+  hud_corner(cm,   cm,    1, 1,cs,ca);
+  hud_corner(W-cm, cm,   -1, 1,cs,ca);
+  hud_corner(cm,   H-cm,  1,-1,cs,ca);
+  hud_corner(W-cm, H-cm, -1,-1,cs,ca);
+
+  ctx.font=`${Math.min(W,H)*0.012}px 'Courier New',monospace`;
+  ctx.fillStyle=`rgba(${RGB},0.3)`;
+  ctx.textAlign='left';  ctx.fillText(`SYS:OK`,cm+4,cm+cs+14);
+  ctx.textAlign='right'; ctx.fillText(`NET:LOCAL`,W-cm-4,cm+cs+14);
+  ctx.textAlign='left';  ctx.fillText(`VER:1.0`,cm+4,H-cm-cs-6);
+  ctx.textAlign='right'; ctx.fillText(`RPI-5`,W-cm-4,H-cm-cs-6);
+}
+requestAnimationFrame(draw);
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const nameEl=document.getElementById('name');
+const stEl=document.getElementById('st');
+const dotsEl=document.getElementById('dots');
+
+function setState(s){
+  state=s;
+  const [R2,G2,B2]=PAL[s]||PAL.idle;
+  tr=R2; tg=G2; tb=B2;
+  nameEl.style.color=`rgb(${Math.min(R2+80,255)},${Math.min(G2+80,255)},${Math.min(B2+80,255)})`;
+  nameEl.style.textShadow=`0 0 30px rgba(${R2},${G2},${B2},.9),0 0 60px rgba(${R2},${G2},${B2},.4)`;
+  stEl.textContent=LABELS[s]||s;
+  dotsEl.style.display=s==='thinking'?'inline-block':'none';
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+let ws;
+function connectWS(){
+  ws=new WebSocket('ws://localhost:8765');
+  ws.onopen=()=>{
+    // Sync camera state so Python knows if overlay is open after reconnect
+    sendCmd(camOverlay.classList.contains('open') ? 'camera_open' : 'camera_close');
+  };
+  ws.onmessage=e=>{
+    try{
+      const d=JSON.parse(e.data);
+      if(d.state) setState(d.state);
+      if(d.mouth!==undefined) setMouth(d.mouth);
+      if(d.lux!==undefined){
+        luxLabel=`LUX:${d.lux}`;
+        document.getElementById('lux').textContent=`LUX: ${d.lux}`;
+      }
+      if(d.transcript) showTranscript(d.transcript.role, d.transcript.text);
+      if(d.force_camera!==undefined){ d.force_camera ? openCamera() : closeCamera(); }
+    }catch(_){}
+  };
+  ws.onclose=()=>setTimeout(connectWS,1000);
+}
+function sendCmd(cmd){
+  if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({cmd}));
+}
+
+const txUser = document.getElementById('tx-user');
+const txAssistant = document.getElementById('tx-assistant');
+function showTranscript(role, text){
+  if(role === 'user'){
+    txUser.textContent = 'You: ' + text;
+    txUser.style.display = 'block';
+    // New user input clears previous assistant reply
+    txAssistant.style.display = 'none';
+    txAssistant.textContent = '';
+  } else if(role === 'assistant'){
+    txAssistant.textContent = 'Max: ' + text;
+    txAssistant.style.display = 'block';
+  }
+}
+setState('idle');
+connectWS();
+
+// ── Buttons ───────────────────────────────────────────────────────────────────
+document.getElementById('btn-interrupt').addEventListener('click',()=>{
+  sendCmd('interrupt');
+});
+
+const btnVision  = document.getElementById('btn-vision');
+const camOverlay = document.getElementById('cam-overlay');
+const camFrame   = document.getElementById('cam-frame');
+let camTimer = null;
+
+function refreshSnapshot(){
+  camFrame.src = '/snapshot.jpg?t=' + Date.now();
+}
+
+function openCamera(){
+  camOverlay.classList.add('open');
+  btnVision.classList.add('active');
+  sendCmd('camera_open');
+  refreshSnapshot();
+  camTimer = setInterval(refreshSnapshot, 500);
+}
+
+function closeCamera(){
+  camOverlay.classList.remove('open');
+  btnVision.classList.remove('active');
+  sendCmd('camera_close');
+  clearInterval(camTimer);
+  camTimer = null;
+}
+
+btnVision.addEventListener('click', ()=>{
+  if(camOverlay.classList.contains('open')) closeCamera();
+  else openCamera();
+});
+
+document.getElementById('cam-close').addEventListener('click', closeCamera);
+
+document.getElementById('cam-look').addEventListener('click', ()=>{
+  sendCmd('vision');
+});
+</script>
+</body>
+</html>
