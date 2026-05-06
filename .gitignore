@@ -18,7 +18,6 @@ models/*.onnx
 # Audio / image artefacts
 *.wav
 *.tmp.wav
-images/ui_demo.png
 images/*.tmp.png
 
 # OS / editor
